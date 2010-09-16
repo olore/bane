@@ -133,29 +133,42 @@ module Bane
       include ForEachLine
     end
 
-    # Sends an HTTP 401 response (Unauthorized) for every request.  This
-    # attempts to mimic an HTTP server by reading a line (the request)
-    # and then sending the response.  This behavior responds to all
-    # incoming request URLs on the running port. 
-    class HttpRefuseAllCredentials < BasicBehavior
-      UNAUTHORIZED_RESPONSE_BODY = <<EOF
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>Bane Server</title>
-  </head>
-  <body>
-    <h1>Unauthorized</h1>
-  </body>
-</html>
-EOF
 
-      def serve(io, options)
-        io.gets # Read the request before responding
-        response = NaiveHttpResponse.new(401, "Unauthorized", "text/html", UNAUTHORIZED_RESPONSE_BODY)
-        io.write(response.to_s)
+
+    def self.create_http_class(config)
+       
+      block = Proc.new do
+
+        define_method(:serve) do |io, options|
+          io.gets # Read the request before responding
+          response_text = config[:response_text] ? config[:response_text] : config[:status_code].to_s
+          response = NaiveHttpResponse.new(
+                config[:status_code], 
+                text_for_http_code(config[:status_code]), 
+                "text/html", response_text
+          )
+          io.write(response.to_s)
+        end
+
+        #FIXME: this shouldn't be defined on EACH class :(
+        define_method(:text_for_http_code) do |code|
+          case code
+            when 401 then "Unauthorized"
+            when 403 then "Forbidden"
+            else "Unknown Error"
+          end
+        end
+    
       end
+
+      Class.new(BasicBehavior, &block)
     end
+
+    # These attempt to mimic an HTTP server by reading a line (the request)
+    # and then sending the response.  These behaviors respond to all
+    # incoming request URLs on the running port. 
+    HttpRefuseAllCredentials = create_http_class(:status_code => 401)
+    Http403Forbidden= create_http_class(:status_code => 403)
 
   end
 end

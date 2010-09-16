@@ -106,6 +106,17 @@ class BehaviorsTest < Test::Unit::TestCase
     assert @fake_connection.read_all_queries?
   end
 
+  def test_http_403_forbidden
+    @fake_connection.will_send("GET /some/forbidden/path HTTP/1.1")
+
+    server = create(Http403Forbidden)
+    query_server(server)
+
+    assert @fake_connection.read_all_queries?, "Should have read the HTTP query before sending response"
+    assert_match /HTTP\/1.1 403 Forbidden/, response, 'Should have responded with the 403 response code'
+ 
+  end
+
   private
 
   def create(server_class)
