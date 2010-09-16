@@ -140,12 +140,21 @@ module Bane
       block = Proc.new do
 
         define_method(:serve) do |io, options|
+          code = config[:status_code]
+          code = code[rand(code.size)] if code.is_a? Array
+         
           io.gets # Read the request before responding
-          response_text = config[:response_text] ? config[:response_text] : config[:status_code].to_s
+
+          if code == 200
+            response_string = config[:success_response] ? config[:success_response] : code.to_s
+          else
+            response_string = code.to_s
+          end
+
           response = NaiveHttpResponse.new(
-                config[:status_code], 
-                text_for_http_code(config[:status_code]), 
-                "text/html", response_text
+                code,
+                text_for_http_code(code), 
+                "text/html", response_string
           )
           io.write(response.to_s)
         end
@@ -155,6 +164,10 @@ module Bane
           case code
             when 401 then "Unauthorized"
             when 403 then "Forbidden"
+            when 404 then "Not Found"
+            when 500 then "Internal Server Error"
+            when 502 then "Bad Gateway"
+            when 503 then "Service Unavailable"
             else "Unknown Error"
           end
         end
@@ -168,7 +181,32 @@ module Bane
     # and then sending the response.  These behaviors respond to all
     # incoming request URLs on the running port. 
     HttpRefuseAllCredentials = create_http_class(:status_code => 401)
-    Http403Forbidden= create_http_class(:status_code => 403)
+    Http403Forbidden = create_http_class(:status_code => 403)
+
+    BAD_HTTP_CODES = [401, 403, 404, 500, 502, 503]
+    HttpRandomBadResponses = create_http_class(:status_code => BAD_HTTP_CODES)
+
+    def self.successful_html
+      <<-EOF
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Bane Server</title>
+  </head>
+  <body>
+    <h1>Success</h1>
+  </body>
+</html>
+      EOF
+    end
+
+    # 80% of the calls return 500 Internal Server Error
+    HttpMostlyBadResponses      = create_http_class(:status_code => [200, 500, 500, 500, 500],
+                  :success_response => self.successful_html)
+
+    # 20% of the calls return 500 Internal Server Error
+    HttpIntermittentBadResponse = create_http_class(:status_code => [200, 200, 200, 200, 500],
+                  :success_response => self.successful_html)
 
   end
 end

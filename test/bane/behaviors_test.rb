@@ -117,6 +117,16 @@ class BehaviorsTest < Test::Unit::TestCase
  
   end
 
+  def test_http_random_bad_response
+    @fake_connection.will_send("GET /some/random/path HTTP/1.1")
+
+    server = create(HttpRandomBadResponses)
+    query_server(server)
+
+    assert @fake_connection.read_all_queries?, "Should have read the HTTP query before sending response"
+    assert_match /HTTP\/1.1 [401|403|404|500|502|503]/, response, 'Should have responded with a 401 or 403 response code'
+ 
+  end
   private
 
   def create(server_class)
